@@ -11,25 +11,27 @@ torch.manual_seed(42)
 
 
 def pscan_fn(A, X, Y_init):
-    A = A[:, :, None].repeat(1, 1, X.size(2))
+    A = A[:, :, None].repeat(1, 1, X.size(2)).clone()
     A = A.transpose(1, 2).contiguous()
     X = X.transpose(1, 2).contiguous()
     shape = X.shape
     X = X.view(-1, shape[-1])
     A = A.view(-1, shape[-1])
-    A, X = pscan.forward(A, X)
-    X = X.view(shape)
-    A = A.view(shape)
-    return (A * Y_init[:,:, None] + X).transpose(1, 2).contiguous()
+    C = torch.stack([A, X], dim=2).contiguous()
+    C = pscan.forward(C)
+    A_ = C[:,:,0].view(shape)
+    X_ = C[:,:,1].view(shape)
+
+    return (A_ * Y_init[:,:, None] + X_).transpose(1, 2).contiguous()
 
 if __name__ == "__main__":
     import time, sys
 
-    N, T, D = 2, 1047, 3
+    N, T, D = 1, 1000, 1
 
-    A = torch.rand(N, T, dtype=torch.float64).requires_grad_().cuda()
-    X = torch.randn(N, T, D, dtype=torch.float64).requires_grad_().cuda()
-    Y_init = torch.randn(N, D, dtype=torch.float64).requires_grad_().cuda()
+    A = torch.rand(N, T, dtype=torch.float32).requires_grad_().cuda()
+    X = torch.randn(N, T, D, dtype=torch.float32).requires_grad_().cuda()
+    Y_init = torch.randn(N, D, dtype=torch.float32).requires_grad_().cuda()
 
     # Iterative implementation
 
