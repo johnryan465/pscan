@@ -24,7 +24,7 @@ class FastPScan(torch.autograd.Function):
     # Y[:, t] = A[:, t] * Y_init + X[:, t]
     @staticmethod
     def pscan_fn(A, X):
-        A = A.repeat(1, 1, X.size(2)).clone()
+        A = A.repeat(1, 1, X.size(2)) # .clone()
         A = A.transpose(1, 2).contiguous()
         X = X.transpose(1, 2).contiguous()
         shape = X.shape
@@ -97,7 +97,16 @@ def pscan_fn_(A, X):
     #print(X_)
     return A_, X_
 
-pscan_fn = FastPScan.apply
+def default_pscan(A, X, Y_init):
+    y = Y_init
+    s = 0
+
+    for k in range(A.size(1)):
+        y = A[:, k, None] * y + X[:, k]
+        s = s + y
+    Y_ = s
+
+pscan_cuda_fn = FastPScan.apply
 
 def fast_pscan(A, X, Y_init):
     Y_init = Y_init[:, :, None]
@@ -113,7 +122,38 @@ def fast_pscan(A, X, Y_init):
     log_x =  a_star + log_x0_plus_b_star
     return torch.transpose(torch.exp(log_x).real[:,:,1:], 1, 2)
 
+
 if __name__ == "__main__":
+    import torch.utils.benchmark as benchmark
+
+
+    N, T, D = 2, 1047, 3
+
+    A = torch.rand(N, T, dtype=torch.float64).requires_grad_().cuda()
+    X = torch.rand(N, T, D, dtype=torch.float64).requires_grad_().cuda()
+    Y_init = torch.rand(N, D, dtype=torch.float64).requires_grad_().cuda()
+
+    tref = benchmark.Timer(
+        stmt='default_pscan(A, X, Y_init)',
+        setup='from __main__ import default_pscan',
+        globals={'A': A, 'X': X, 'Y_init': Y_init})
+
+    t0 = benchmark.Timer(
+        stmt='pscan_cuda_fn(A, X, Y_init)',
+        setup='from __main__ import pscan_cuda_fn',
+        globals={'A': A, 'X': X, 'Y_init': Y_init})
+
+    t1 = benchmark.Timer(
+        stmt='fast_pscan(A, X, Y_init)',
+        setup='from __main__ import fast_pscan',
+        globals={'A': A, 'X': X, 'Y_init': Y_init})
+    
+    print(tref.timeit(100))
+    print(t1.timeit(100))
+    print(t0.timeit(100))
+
+
+if __name__ != "__main__":
     import time, sys
 
 
@@ -141,12 +181,16 @@ if __name__ == "__main__":
     # parallel scan
 
     start_time = time.perf_counter()
-    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+    profile = False
+    if profile:
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+            for i in range(1000):
+                Y = pscan_cuda_fn(A, X, Y_init)
+        print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    else:
         for i in range(1000):
-            #print(i)
-            Y = pscan_fn(A, X, Y_init)
-    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
-    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+            Y = pscan_cuda_fn(A, X, Y_init)
 
     duration = time.perf_counter() - start_time
     print(f"duration {duration}")
