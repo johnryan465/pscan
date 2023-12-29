@@ -38,9 +38,9 @@ __global__ void pscan_cuda_forward_kernel(
      {
     // thread ID
     const int tidx = threadIdx.x;
-    //const int tidy = threadIdx.y;
     // block ID
     const int bidx = blockIdx.x;
+    //printf("bidx: %d\n", bidx);
 
     typedef typename PairScalar<scalar_t>::type pair_type;
 
@@ -58,11 +58,13 @@ __global__ void pscan_cuda_forward_kernel(
     } temp_storage;
     // Obtain a segment of consecutive items that are blocked across threads
     pair_type thread_data[ITEMS_PER_THREAD];
-    int block_offset = bidx * state_size * 2;
+    int block_offset = bidx * state_size; // * sizeof(pair_type);
+    //printf("block_offset, bidx, state_size: %d, %d, %d\n", block_offset, bidx, state_size);
+    int valid_items = state_size;
 
-    BlockLoad(temp_storage.load).Load(A + block_offset, thread_data);
+    BlockLoad(temp_storage.load).Load(A + block_offset, thread_data, valid_items);
     BlockScan(temp_storage.scan).InclusiveScan(thread_data, thread_data, MultAddFunctor<pair_type>());
-    BlockStore(temp_storage.store).Store(A + block_offset, thread_data);
+    BlockStore(temp_storage.store).Store(A + block_offset, thread_data, valid_items);
 }
 
 torch::Tensor pscan_cuda_forward(torch::Tensor A) {
@@ -71,11 +73,11 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A) {
   const auto state_size = A.size(1);
 
 
-  const int threads = 1024;
-  const dim3 blocks((state_size + threads - 1) / threads, batch_size);
+  const int threads = 512;
+  const int blocks = batch_size;
 
   AT_DISPATCH_FLOATING_TYPES(A.type(), "pscan_forward_cuda", ([&] {
-    pscan_cuda_forward_kernel<scalar_t, 2, 1024><<<blocks, threads>>>(
+    pscan_cuda_forward_kernel<scalar_t, 4, threads><<<blocks, threads>>>(
         A.data<scalar_t>(),
         state_size
     );
