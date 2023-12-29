@@ -148,9 +148,9 @@ if __name__ == "__main__":
         setup='from __main__ import fast_pscan',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
-    print(tref.timeit(100))
-    print(t1.timeit(100))
-    print(t0.timeit(100))
+    print(tref.timeit(1000))
+    print(t1.timeit(1000))
+    print(t0.timeit(1000))
 
 
 if __name__ != "__main__":
