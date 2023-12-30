@@ -36,8 +36,6 @@ __global__ void pscan_cuda_forward_kernel(
     scalar_t* __restrict__ A_,
     int state_size)
      {
-    // thread ID
-    const int tidx = threadIdx.x;
     // block ID
     const int bidx = blockIdx.x;
     //printf("bidx: %d\n", bidx);

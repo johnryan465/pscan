@@ -204,7 +204,7 @@ if __name__ != "__main__":
     print(log_x0_plus_b_star_2.shape)
 
 
-if __name__ == "__main__":
+if __name__ != "__main__":
     import time, sys
 
     N, T, D = 2, 1047, 3
