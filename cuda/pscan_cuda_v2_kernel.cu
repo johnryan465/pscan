@@ -65,20 +65,22 @@ __global__ void pscan_cuda_forward_kernel(
     BlockStore(temp_storage.store).Store(A + block_offset, thread_data, valid_items);
 }
 
-torch::Tensor pscan_cuda_forward(torch::Tensor A) {
-
-  const auto batch_size = A.size(0);
-  const auto state_size = A.size(1);
-
-
-  const int threads = 512;
-  const int blocks = batch_size;
-
+torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor B) {
   AT_DISPATCH_FLOATING_TYPES(A.type(), "pscan_forward_cuda", ([&] {
-    pscan_cuda_forward_kernel<scalar_t, 4, threads><<<blocks, threads>>>(
-        A.data<scalar_t>(),
-        state_size
-    );
+
+    typedef typename PairScalar<scalar_t>::type pair_type;
+
+    pair_type* A_ptr = reinterpret_cast<pair_type*>(A.data<scalar_t>());
+    int* B_ptr = B.data<int>();
+
+    MultAddFunctor<pair_type> bin_op;
+
+    // Determine temporary device storage requirements for inclusive prefix scan
+    void     *d_temp_storage = NULL;
+    size_t   temp_storage_bytes = 0;
+    cub::DeviceScan::InclusiveScanByKey(d_temp_storage, temp_storage_bytes, B_ptr, A_ptr, A_ptr, bin_op, B.numel(), cub::Equality());
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    cub::DeviceScan::InclusiveScanByKey(d_temp_storage, temp_storage_bytes, B_ptr, A_ptr, A_ptr, bin_op, B.numel(), cub::Equality());
   }));
 
   return A;

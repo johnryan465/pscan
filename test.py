@@ -8,6 +8,7 @@ torch.manual_seed(42)
 
 from fastpscan.original import fn as original_pscan_fn
 from fastpscan.cuda_v1 import fn as pscan_cuda_fn
+from fastpscan.cuda_v2 import fn as pscan_cuda_v2_fn
 from fastpscan.naive import fn as naive_pscan
 from fastpscan.heinsen import fn as heinsen_pscan
 
@@ -31,6 +32,8 @@ if __name__ == "__main__":
     gA_og, gX_og, gY_init_og = backward_wrapper(original_pscan_fn, A, X, Y_init)
     gA_cuda, gX_cuda, gY_init_cuda = backward_wrapper(pscan_cuda_fn, A, X, Y_init)
     gA_heinsen, gX_heinsen, gY_init_heinsen = backward_wrapper(heinsen_pscan, A, X, Y_init)
+    gA_cuda_v2, gX_cuda_v2, gY_init_cuda_v2 = backward_wrapper(pscan_cuda_v2_fn, A, X, Y_init)
+
 
     print("Testing Naive vs Original")
     assert torch.allclose(gA_ref, gA_og)
@@ -49,6 +52,12 @@ if __name__ == "__main__":
     assert torch.allclose(gA_ref, gA_heinsen)
     assert torch.allclose(gX_ref, gX_heinsen)
     assert torch.allclose(gY_init_ref, gY_init_heinsen)
+    print("Success!")
+
+    print("Testing Naive vs CUDA v2")
+    assert torch.allclose(gA_ref, gA_cuda_v2)
+    assert torch.allclose(gX_ref, gX_cuda_v2)
+    assert torch.allclose(gY_init_ref, gY_init_cuda_v2)
     print("Success!")
 
 

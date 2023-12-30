@@ -19,8 +19,9 @@ class FastPScan(torch.autograd.Function):
         shape = X.shape
         X = X.view(-1, shape[-1])
         A = A.view(-1, shape[-1])
+        B = torch.arange(A.size(0), device=A.device, dtype=torch.int).view(-1, 1).repeat(1, A.size(1))
         C = torch.stack([A, X], dim=2).contiguous()
-        C = pscan_cuda_v2.forward(C)
+        C = pscan_cuda_v2.forward(C, B)
         A_ = C[:,:,0].view(shape).transpose(1, 2)
         X_ = C[:,:,1].view(shape).transpose(1, 2)
         return A_, X_

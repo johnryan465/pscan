@@ -7,6 +7,7 @@ torch.manual_seed(42)
 
 from fastpscan.original import fn as original_pscan_fn
 from fastpscan.cuda_v1 import fn as pscan_cuda_fn
+from fastpscan.cuda_v2 import fn as pscan_cuda_v2_fn
 from fastpscan.naive import fn as naive_pscan
 from fastpscan.heinsen import fn as heinsen_pscan
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     import torch.utils.benchmark as benchmark
 
 
-    N, T, D = 2, 1047, 3
+    N, T, D = 4, 1047, 3
 
     A = torch.rand(N, T, dtype=torch.float64).requires_grad_().cuda()
     X = torch.rand(N, T, D, dtype=torch.float64).requires_grad_().cuda()
@@ -45,8 +46,18 @@ if __name__ == "__main__":
         setup='from __main__ import original_pscan_fn, backward_wrapper',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
+    t3 = benchmark.Timer(
+        stmt='backward_wrapper(pscan_cuda_v2_fn, A, X, Y_init)',
+        setup='from __main__ import pscan_cuda_v2_fn, backward_wrapper',
+        globals={'A': A, 'X': X, 'Y_init': Y_init})
+
+    
+    
+
+    
     
     #print(tref.timeit(100))
     print(t0.timeit(1000))
     print(t1.timeit(1000))
     print(t2.timeit(1000))
+    print(t3.timeit(1000))
