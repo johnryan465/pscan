@@ -1,7 +1,6 @@
 import torch
 
 import pscan_cuda
-torch.manual_seed(42)
 
 class FastPScan(torch.autograd.Function):
     # Given A is NxTx1 and X is NxTxD, expands A and X in place in O(T),
@@ -53,3 +52,5 @@ class FastPScan(torch.autograd.Function):
         Q = ctx.Y_init.expand_as(ctx.X_star).clone()
         Q[:, 1:].mul_(ctx.A_star[:, :-1]).add_(ctx.X_star[:, :-1])
         return (Q * R).sum(-1), R, U.sum(dim=1)
+
+fn = FastPScan.apply

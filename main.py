@@ -6,50 +6,11 @@ from torch.profiler import profile, record_function, ProfilerActivity
 torch.manual_seed(42)
 
 
-from fastpscan import original
-original_pscan_fn = original.PScan.apply
+from fastpscan.original import fn as original_pscan_fn
+from fastpscan.cuda_v1 import fn as pscan_cuda_fn
+from fastpscan.naive import fn as naive_pscan
+from fastpscan.heinsen import fn as heinsen_pscan
 
-from fastpscan.cuda_v1 import FastPScan
-
-
-def pscan_fn_(A, X):
-    A = A[:, :, None].repeat(1, 1, X.size(2)).clone()
-    A = A.transpose(1, 2).contiguous()
-    X = X.transpose(1, 2).contiguous()
-    shape = X.shape
-    X = X.view(-1, shape[-1])
-    A = A.view(-1, shape[-1])
-    C = torch.stack([A, X], dim=2).contiguous()
-    C = pscan.forward(C)
-    A_ = C[:,:,0].view(shape).transpose(1, 2)
-    X_ = C[:,:,1].view(shape).transpose(1, 2)
-    return A_, X_
-
-def default_pscan(A, X, Y_init):
-    y = Y_init
-    s = 0
-
-    for k in range(A.size(1)):
-        y = A[:, k, None] * y + X[:, k]
-        s = s + y
-    Y_ = s
-    return Y_
-
-pscan_cuda_fn = FastPScan.apply
-
-def fast_pscan(A, X, Y_init):
-    Y_init = Y_init[:, :, None]
-    Xa = torch.concat([Y_init, torch.transpose(X, 1, 2)], dim=-1)
-    X_real = torch.abs(Xa).log()
-    X_complex = (Xa < 0).to(torch.float64)
-    A_real = torch.abs(A).log()
-    X_ = torch.complex(X_real, X_complex * torch.pi)
-    A_complex = (A < 0).to(torch.float64)
-    A_ = torch.complex(A_real, A_complex * torch.pi)
-    a_star =  F.pad(torch.cumsum(A_, dim=-1), (1,0))[:,None,:] 
-    log_x0_plus_b_star = torch.logcumsumexp(X_ - a_star, dim=-1)
-    log_x =  a_star + log_x0_plus_b_star
-    return torch.transpose(torch.exp(log_x).real[:,:,1:], 1, 2)
 
 
 def backward_wrapper(fn, A, X, Y_init):
@@ -70,8 +31,8 @@ if __name__ != "__main__":
     Y_init = torch.rand(N, D, dtype=torch.float64).requires_grad_().cuda()
 
     tref = benchmark.Timer(
-        stmt='default_pscan(A, X, Y_init)',
-        setup='from __main__ import default_pscan',
+        stmt='naive_pscan(A, X, Y_init)',
+        setup='from __main__ import naive_pscan',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
 
     t0 = benchmark.Timer(
@@ -80,8 +41,8 @@ if __name__ != "__main__":
         globals={'A': A, 'X': X, 'Y_init': Y_init})
 
     t1 = benchmark.Timer(
-        stmt='fast_pscan(A, X, Y_init)',
-        setup='from __main__ import fast_pscan',
+        stmt='heinsen_pscan(A, X, Y_init)',
+        setup='from __main__ import heinsen_pscan',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
     t2 = benchmark.Timer(
@@ -112,8 +73,8 @@ if __name__ == "__main__":
         globals={'A': A, 'X': X, 'Y_init': Y_init})
 
     t1 = benchmark.Timer(
-        stmt='backward_wrapper(fast_pscan, A, X, Y_init)',
-        setup='from __main__ import fast_pscan, backward_wrapper',
+        stmt='backward_wrapper(heinsen_pscan, A, X, Y_init)',
+        setup='from __main__ import heinsen_pscan, backward_wrapper',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
     t2 = benchmark.Timer(
