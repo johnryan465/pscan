@@ -1,6 +1,6 @@
 import torch
 
-import pscan_cuda_v1
+import pscan_cuda_v2
 
 class FastPScan(torch.autograd.Function):
     # Given A is NxTx1 and X is NxTxD, expands A and X in place in O(T),
@@ -20,7 +20,7 @@ class FastPScan(torch.autograd.Function):
         X = X.view(-1, shape[-1])
         A = A.view(-1, shape[-1])
         C = torch.stack([A, X], dim=2).contiguous()
-        C = pscan_cuda_v1.forward(C)
+        C = pscan_cuda_v2.forward(C)
         A_ = C[:,:,0].view(shape).transpose(1, 2)
         X_ = C[:,:,1].view(shape).transpose(1, 2)
         return A_, X_

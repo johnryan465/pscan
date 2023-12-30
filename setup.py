@@ -6,9 +6,13 @@ setup(
     packages=['fastpscan'],
     package_dir={'fastpscan':'src'},
     ext_modules=[
-        CUDAExtension('pscan_cuda', [
-            'cuda/pscan_cuda.cpp',
-            'cuda/pscan_cuda_kernel.cu',
+        CUDAExtension('pscan_cuda_v1', [
+            'cuda/pscan_cuda_v1.cpp',
+            'cuda/pscan_cuda_v1_kernel.cu',
+        ]),
+        CUDAExtension('pscan_cuda_v2', [
+            'cuda/pscan_cuda_v2.cpp',
+            'cuda/pscan_cuda_v2_kernel.cu',
         ]),
     ],
     cmdclass={
