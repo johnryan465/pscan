@@ -72,17 +72,10 @@ class FastPScan(torch.autograd.Function):
         A = ctx.A.clone()
         R = grad_output.clone()
         A_ = torch.flip(A, [1])
-        #print("A", A)
-        #print("R", R)
         A__ = torch.cat([torch.ones_like(A_[:, -1:]), A_[:, :-1]], dim=1)
         rev_r = torch.flip(R, [1])
-        #print("A__", A__)
-        #print("rev_r", rev_r)
         _, R_ = FastPScan.pscan_fn(A__, rev_r)
         R = torch.flip(R_, [1])
-        #FastPScan.acc_rev_(A, R)
-        #print("R__test", R__test)
-        #print("R", R)
         Q = ctx.Y_init.expand_as(ctx.X_star).clone()
         Q[:, 1:].mul_(ctx.A_star[:, :-1]).add_(ctx.X_star[:, :-1])
         return (Q * R).sum(-1), R, U.sum(dim=1)
@@ -271,8 +264,8 @@ if __name__ == "__main__":
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
     t2 = benchmark.Timer(
-        stmt='original_pscan_fn(A, X, Y_init)',
-        setup='from __main__ import original_pscan_fn',
+        stmt='backward_wrapper(original_pscan_fn, A, X, Y_init)',
+        setup='from __main__ import original_pscan_fn, backward_wrapper',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
     
     
@@ -311,8 +304,8 @@ if __name__ != "__main__":
     # parallel scan
 
     start_time = time.perf_counter()
-    profile = False
-    if profile:
+    profile_flag = False
+    if profile_flag:
         with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
             for i in range(1000):
                 Y = pscan_cuda_fn(A, X, Y_init)
@@ -327,8 +320,11 @@ if __name__ != "__main__":
 
     s_ = Y.sum()
 
-    gA, gX, gY_init = torch.autograd.grad(s_, (A, X, Y_init), retain_graph=True)
+    with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]) as prof:
+        gA, gX, gY_init = torch.autograd.grad(s_, (A, X, Y_init), retain_graph=False)
 
+    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
     print("gA", gA)
     print("gA_ref", gA_ref)
     print("gA", (gA - gA_ref).norm())
