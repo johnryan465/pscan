@@ -14,11 +14,11 @@ if __name__ == "__main__":
     import torch.utils.benchmark as benchmark
 
 
-    N, T, D = 2, 1047, 3
+    N, T, D = 128, 1047, 4
 
-    A = torch.rand(N, T, dtype=torch.float64).requires_grad_().cuda()
-    X = torch.rand(N, T, D, dtype=torch.float64).requires_grad_().cuda()
-    Y_init = torch.rand(N, D, dtype=torch.float64).requires_grad_().cuda()
+    A = torch.rand(N, T, dtype=torch.float32).requires_grad_().cuda()
+    X = torch.rand(N, T, D, dtype=torch.float32).requires_grad_().cuda()
+    Y_init = torch.rand(N, D, dtype=torch.float32).requires_grad_().cuda()
 
     t0 = benchmark.Timer(
         stmt='original_pscan_fn(A, X, Y_init)',
@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     
     
-    print(t0.timeit(1000))
-    print(t1.timeit(1000))
-    print(t2.timeit(1000))
-    print(t3.timeit(1000))
+    print(t0.timeit(100))
+    # print(t1.timeit(100))
+    print(t2.timeit(100))
+    print(t3.timeit(100))

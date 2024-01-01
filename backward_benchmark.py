@@ -50,14 +50,8 @@ if __name__ == "__main__":
         stmt='backward_wrapper(pscan_cuda_v2_fn, A, X, Y_init)',
         setup='from __main__ import pscan_cuda_v2_fn, backward_wrapper',
         globals={'A': A, 'X': X, 'Y_init': Y_init})
-
     
-    
-
-    
-    
-    #print(tref.timeit(100))
-    print(t0.timeit(1000))
-    print(t1.timeit(1000))
-    print(t2.timeit(1000))
-    print(t3.timeit(1000))
+    print(t0.timeit(100))
+    # print(t1.timeit(1000))
+    print(t2.timeit(100))
+    print(t3.timeit(100))

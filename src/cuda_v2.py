@@ -14,16 +14,15 @@ class FastPScan(torch.autograd.Function):
     # Y[:, t] = A[:, t] * Y_init + X[:, t]
     @staticmethod
     def pscan_fn(A, X):
-        A = A.transpose(1,2).repeat(1, X.size(2), 1)
-        X = X.transpose(1, 2).contiguous()
-        shape = X.shape
-        X = X.view(-1, shape[-1])
-        A = A.view(-1, shape[-1])
-        B = torch.arange(A.size(0), device=A.device, dtype=torch.int).view(-1, 1).repeat(1, A.size(1))
-        C = torch.stack([A, X], dim=2).contiguous()
+        A = A.repeat(1, 1, X.size(2))
+        shape = (X.shape[0], X.shape[2], X.shape[1])
+        C = torch.stack([A, X], dim=3).transpose(1,2).contiguous()
+        C = C.view(-1, shape[-1], 2)
+        B = torch.arange(C.size(0), device=A.device, dtype=torch.int).view(-1, 1).repeat(1, C.size(1))
         C = pscan_cuda_v2.forward(C, B)
-        A_ = C[:,:,0].view(shape).transpose(1, 2)
-        X_ = C[:,:,1].view(shape).transpose(1, 2)
+        C_ = C.view(shape + (2,)).transpose(1, 2)
+        A_ = C_[:,:,:,0]
+        X_ = C_[:,:,:,1]
         return A_, X_
 
     # A is NxT, X is NxTxD, Y_init is NxD
@@ -45,8 +44,8 @@ class FastPScan(torch.autograd.Function):
         U = grad_output * ctx.A_star
         A = ctx.A
         R = grad_output
-        A_ = torch.flip(A, [1])
-        A__ = torch.cat([torch.ones_like(A_[:, -1:]), A_[:, :-1]], dim=1)
+        A_ = torch.cat([A[:, 1:],torch.ones_like(A[:, :1])], dim=1)
+        A__ = torch.flip(A_, [1])
         rev_r = torch.flip(R, [1])
         _, R_ = FastPScan.pscan_fn(A__, rev_r)
         R = torch.flip(R_, [1])

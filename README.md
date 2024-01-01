@@ -5,9 +5,8 @@ This implements 5 different algorithms for the parallel scan problem in pytorch.
 - Naive: The naive algorithm that uses a for loop to compute the scan.
 - Original: Code written by https://twitter.com/francoisfleuret which motivated this project.
 - Heinsen: The algorithm described in https://arxiv.org/abs/2311.06281
-- CUDA_V1: The (currently fastest) algorithm which uses a custom CUDA kernel + CUB to do the reduction on a block level. **This algorithm will only work for shorter values of T.**
-- CUDA_V2: This does a device level reduction using CUB, it is slower than CUDA_V1 but it is more general and works for much larger input size. **This is the recommended algorithm to use.**
-
+- CUDA_V1: The (currently fastest) algorithm which uses a custom CUDA kernel + CUB to do the reduction on a block level. **This is the recommended algorithm to use.**
+- CUDA_V2: This does a device level reduction using CUB, it is slower than CUDA_V1 but works for much larger input size.
 ## Benchmark
 
 Benchmarking was done on a 3090 GPU.

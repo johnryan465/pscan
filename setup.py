@@ -10,10 +10,12 @@ setup(
             'cuda/pscan_cuda_v1.cpp',
             'cuda/pscan_cuda_v1_kernel.cu',
         ]),
-        CUDAExtension('pscan_cuda_v2', [
+        CUDAExtension(
+            name='pscan_cuda_v2', 
+            sources=[
             'cuda/pscan_cuda_v2.cpp',
-            'cuda/pscan_cuda_v2_kernel.cu',
-        ]),
+            'cuda/pscan_cuda_v2_kernel.cu'
+            ]),
     ],
     cmdclass={
         'build_ext': BuildExtension
