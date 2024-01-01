@@ -4,7 +4,7 @@
 
 // CUDA forward declarations
 
-torch::Tensor pscan_cuda_forward(torch::Tensor A);
+torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X);
 
 // C++ interface
 
@@ -13,10 +13,11 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A);
 #define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
-torch::Tensor pscan_forward(torch::Tensor A) {
+torch::Tensor pscan_forward(torch::Tensor A, torch::Tensor X) {
   CHECK_INPUT(A);
+  CHECK_INPUT(X);
 
-  return pscan_cuda_forward(A);
+  return pscan_cuda_forward(A, X);
 }
 
 
