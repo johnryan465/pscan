@@ -36,16 +36,13 @@ template <
 __global__ void pscan_cuda_forward_kernel(
     torch::PackedTensorAccessor32<scalar_t,3,torch::RestrictPtrTraits> A,
     torch::PackedTensorAccessor32<scalar_t,3,torch::RestrictPtrTraits> X,
-    int state_size,
-    int dim_size)
+    int state_size)
      {
     // block ID
     const int bidx = blockIdx.x;
     const int didx = blockIdx.y;
 
     typedef typename PairScalar<scalar_t>::type pair_type;
-
-    int block_offset = (bidx * state_size * dim_size) + didx*state_size;
 
     typedef cub::BlockScan<pair_type, BLOCK_THREADS> BlockScan;
     __shared__ typename BlockScan::TempStorage temp_storage;
@@ -79,15 +76,14 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X) {
 
 
   const int threads = 512;
-  const int elements_per_thread = 4;
+  const int elements_per_thread = 2;
   const auto blocks = dim3(batch_size, dim_size, 1);
 
   AT_DISPATCH_FLOATING_TYPES(A.type(), "pscan_forward_cuda", ([&] {
     pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads><<<blocks, threads>>>(
         A.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
         X.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
-        state_size,
-        dim_size
+        state_size
     );
   }));
 

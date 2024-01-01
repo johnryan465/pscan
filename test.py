@@ -84,7 +84,7 @@ if __name__ == "__main__":
     Y_init = torch.rand(N, D, dtype=torch.float32).requires_grad_().cuda()
 
     # res_ref = naive_pscan(A, X, Y_init)
-    #res_og = original_pscan_fn(A, X, Y_init)
+    res_og = original_pscan_fn(A, X, Y_init)
     res_cuda = pscan_cuda_fn(A, X, Y_init)
     # res_heinsen = heinsen_pscan(A, X, Y_init)
     #res_cuda_v2 = pscan_cuda_v2_fn(A, X, Y_init)
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     print("Testing Original vs CUDA")
     # print(res_og)  
     # print(res_cuda)
-    #assert torch.allclose(res_og, res_cuda)
+    assert torch.allclose(res_og, res_cuda)
     #print("Success!")
 
 
