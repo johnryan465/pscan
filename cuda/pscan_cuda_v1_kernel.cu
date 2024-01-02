@@ -39,8 +39,9 @@ __global__ void pscan_cuda_forward_kernel(
     int state_size)
      {
     // block ID
-    const int bidx = blockIdx.x;
-    const int didx = blockIdx.y;
+    const int bidx = blockIdx.y;
+    const int didx = blockIdx.x;
+    const int tid = threadIdx.x; 
 
     typedef typename PairScalar<scalar_t>::type pair_type;
 
@@ -52,8 +53,8 @@ __global__ void pscan_cuda_forward_kernel(
 
     #pragma unroll
     for (int i = 0; i < ITEMS_PER_THREAD; ++i) {
-        if (i + threadIdx.x * ITEMS_PER_THREAD < state_size){
-            thread_data[i] = {A[bidx][didx][i + threadIdx.x * ITEMS_PER_THREAD], X[bidx][didx][i + threadIdx.x * ITEMS_PER_THREAD]};
+        if (i + tid * ITEMS_PER_THREAD < state_size){
+            thread_data[i] = {A[bidx][didx][i + tid * ITEMS_PER_THREAD], X[bidx][didx][i + tid * ITEMS_PER_THREAD]};
         }
     }
     //BlockLoad(temp_storage.load).Load(custom_it_in, thread_data, state_size);
@@ -62,8 +63,8 @@ __global__ void pscan_cuda_forward_kernel(
     #pragma unroll
     for (int i = 0; i < ITEMS_PER_THREAD; ++i) {
         if (i + threadIdx.x * ITEMS_PER_THREAD < state_size){
-            A[bidx][didx][i + threadIdx.x * ITEMS_PER_THREAD] = thread_data[i].x;
-            X[bidx][didx][i + threadIdx.x * ITEMS_PER_THREAD] = thread_data[i].y;
+            A[bidx][didx][i + tid * ITEMS_PER_THREAD] = thread_data[i].x;
+            X[bidx][didx][i + tid * ITEMS_PER_THREAD] = thread_data[i].y;
         }
     }
 }
@@ -76,8 +77,8 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X) {
 
 
   const int threads = 512;
-  const int elements_per_thread = 2;
-  const auto blocks = dim3(batch_size, dim_size, 1);
+  const int elements_per_thread = 4;
+  const auto blocks = dim3(dim_size, batch_size, 1);
 
   AT_DISPATCH_FLOATING_TYPES(A.type(), "pscan_forward_cuda", ([&] {
     pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads><<<blocks, threads>>>(

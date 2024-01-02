@@ -24,7 +24,7 @@ if __name__ == "__main__":
     import torch.utils.benchmark as benchmark
 
 
-    N, T, D = 2, 1047, 3
+    N, T, D = 384, 2048, 256
 
     A = torch.rand(N, T, dtype=torch.float64).requires_grad_().cuda()
     X = torch.rand(N, T, D, dtype=torch.float64).requires_grad_().cuda()
