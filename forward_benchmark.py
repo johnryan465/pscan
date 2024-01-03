@@ -61,4 +61,4 @@ if __name__ == "__main__":
     print(t2.timeit(100))
     print(t3.timeit(100))
     print(t4.timeit(100))
-    print(t5.timeit(100))
+    #print(t5.timeit(100))
