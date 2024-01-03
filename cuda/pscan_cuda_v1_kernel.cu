@@ -3,6 +3,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cub/cub.cuh>
+#include <ATen/cuda/CUDAContext.h>
 
 
 #include <vector>
@@ -76,12 +77,14 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X) {
   const auto dim_size = A.size(1);
 
 
-  const int threads = 512;
-  const int elements_per_thread = 4;
+  const int threads = 1024;
+  const int elements_per_thread = 2;
   const auto blocks = dim3(dim_size, batch_size, 1);
+  auto stream = at::cuda::getCurrentCUDAStream().stream();
+
 
   AT_DISPATCH_FLOATING_TYPES(A.type(), "pscan_forward_cuda", ([&] {
-    pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads><<<blocks, threads>>>(
+    pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads><<<blocks, threads, 0, stream>>>(
         A.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
         X.packed_accessor32<scalar_t,3,torch::RestrictPtrTraits>(),
         state_size

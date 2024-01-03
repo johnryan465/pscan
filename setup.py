@@ -69,6 +69,33 @@ setup(
                 ]
                 + cc_flag,
             }),
+        CUDAExtension(
+            name='pscan_cuda_proger', 
+            sources=[
+                'cuda/cuscan_kernel.cu',
+                'cuda/cuscan.cpp',
+            ],
+            extra_compile_args={
+                "cxx": ["-O3", "-std=c++17"],
+                "nvcc": [
+                    "-O3",
+                    "-std=c++17",
+                    "-U__CUDA_NO_HALF_OPERATORS__",
+                    "-U__CUDA_NO_HALF_CONVERSIONS__",
+                    "-U__CUDA_NO_BFLOAT16_OPERATORS__",
+                    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+                    "-U__CUDA_NO_BFLOAT162_OPERATORS__",
+                    "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
+                    "--expt-relaxed-constexpr",
+                    "--expt-extended-lambda",
+                    "--use_fast_math",
+                    "--ptxas-options=-v",
+                    "-lineinfo",
+                    "--threads",
+                    "4",
+                ]
+                + cc_flag,
+            }),
     ],
     cmdclass={
         'build_ext': BuildExtension
