@@ -16,8 +16,7 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X);
 std::vector<torch::Tensor> pscan_forward(torch::Tensor A, torch::Tensor X) {
   CHECK_INPUT(A);
   CHECK_INPUT(X);
-  X = X.transpose(1,2).contiguous();
-  pscan_cuda_forward(A, X);
+  X = pscan_cuda_forward(A, X);
   A = A.transpose(1,2);
   X = X.transpose(1,2);
   return {A, X};
