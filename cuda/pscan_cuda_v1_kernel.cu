@@ -54,9 +54,6 @@ __global__ void pscan_cuda_forward_kernel(
     
     auto& temp_storage = reinterpret_cast<TempStorageT&>(smem);
 
-    // __shared__ typename BlockScan::TempStorage temp_storage;
-
-    // Obtain a segment of consecutive items that are blocked across threads
     pair_type thread_data[ITEMS_PER_THREAD];
 
     if (1 + tid * ITEMS_PER_THREAD < state_size){
