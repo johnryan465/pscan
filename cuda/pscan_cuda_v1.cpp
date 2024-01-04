@@ -13,11 +13,14 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X);
 #define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
-torch::Tensor pscan_forward(torch::Tensor A, torch::Tensor X) {
+std::vector<torch::Tensor> pscan_forward(torch::Tensor A, torch::Tensor X) {
   CHECK_INPUT(A);
   CHECK_INPUT(X);
-
-  return pscan_cuda_forward(A, X);
+  X = X.transpose(1,2).contiguous();
+  pscan_cuda_forward(A, X);
+  A = A.transpose(1,2);
+  X = X.transpose(1,2);
+  return {A, X};
 }
 
 

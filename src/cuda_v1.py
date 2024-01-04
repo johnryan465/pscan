@@ -15,10 +15,8 @@ class FastPScan(torch.autograd.Function):
     @staticmethod
     def pscan_fn(A, X):
         A_ = A[:,None,:].repeat(1, X.size(2), 1)
-        X = X.transpose(1,2).contiguous()
-        pscan_cuda_v1.forward(A_, X)
-        A_ = A_.transpose(1,2)
-        X_ = X.transpose(1,2)
+        #A_ = A[:, :, None].repeat(1, 1, X.size(2))
+        A_, X_ = pscan_cuda_v1.forward(A_, X)
         return A_, X_
 
 

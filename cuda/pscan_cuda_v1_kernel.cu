@@ -40,8 +40,8 @@ __global__ void pscan_cuda_forward_kernel(
     int state_size)
      {
     // block ID
-    const int bidx = blockIdx.y;
-    const int didx = blockIdx.x;
+    const int bidx = blockIdx.x;
+    const int didx = blockIdx.y;
     const int tid = threadIdx.x; 
 
     typedef typename PairScalar<scalar_t>::type pair_type;
@@ -58,9 +58,7 @@ __global__ void pscan_cuda_forward_kernel(
             thread_data[i] = {A[bidx][didx][i + tid * ITEMS_PER_THREAD], X[bidx][didx][i + tid * ITEMS_PER_THREAD]};
         }
     }
-    //BlockLoad(temp_storage.load).Load(custom_it_in, thread_data, state_size);
     BlockScan(temp_storage).InclusiveScan(thread_data, thread_data, MultAddFunctor<pair_type>());
-    // BlockStore(temp_storage.store).Store(custom_it_out, thread_data, state_size);
     #pragma unroll
     for (int i = 0; i < ITEMS_PER_THREAD; ++i) {
         if (i + threadIdx.x * ITEMS_PER_THREAD < state_size){
@@ -79,7 +77,7 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X) {
 
   const int threads = 1024;
   const int elements_per_thread = 2;
-  const auto blocks = dim3(dim_size, batch_size, 1);
+  const auto blocks = dim3(batch_size, dim_size, 1);
   auto stream = at::cuda::getCurrentCUDAStream().stream();
 
 
