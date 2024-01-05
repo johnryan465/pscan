@@ -3,8 +3,7 @@
 #include <vector>
 
 // CUDA forward declarations
-
-torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X);
+#include "pscan_cuda_v1.cuh"
 
 // C++ interface
 
@@ -16,13 +15,24 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X);
 std::vector<torch::Tensor> pscan_forward(torch::Tensor A, torch::Tensor X) {
   CHECK_INPUT(A);
   CHECK_INPUT(X);
-  X = pscan_cuda_forward(A, X);
+  torch::Tensor X_ = pscan_cuda_wrapper<false>(A, X);
   A = A.transpose(1,2);
-  X = X.transpose(1,2);
-  return {A, X};
+  X_ = X_.transpose(1,2);
+  return {A, X_};
 }
+
+std::vector<torch::Tensor> pscan_backward(torch::Tensor A, torch::Tensor X) {
+  CHECK_INPUT(A);
+  CHECK_INPUT(X);
+  torch::Tensor X_ = pscan_cuda_wrapper<true>(A, X);
+  A = A.transpose(1,2);
+  X_ = X_.transpose(1,2);
+  return {A, X_};
+}
+
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &pscan_forward, "PScan forward (CUDA)");
+  m.def("backward", &pscan_backward, "PScan backward (CUDA)");
 }

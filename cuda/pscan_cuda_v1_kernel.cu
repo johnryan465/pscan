@@ -6,6 +6,7 @@
 #include <ATen/cuda/CUDAContext.h>
 
 #include <vector>
+#include "pscan_cuda_v1.cuh"
 
 #define CHECK_CUDA_ERROR(val) check((val), #val, __FILE__, __LINE__)
 template <typename T>
@@ -70,7 +71,8 @@ __device__ __forceinline__ void transpose(scalar_t *A)
 template <
     typename scalar_t,
     int ITEMS_PER_THREAD,
-    int BLOCK_THREADS>
+    int BLOCK_THREADS,
+    bool REVERSE>
 __global__ void pscan_cuda_forward_kernel(
     scalar_t *A,
     scalar_t *X,
@@ -81,7 +83,13 @@ __global__ void pscan_cuda_forward_kernel(
     const int bidx = blockIdx.x;
     const int didx = blockIdx.y;
     const int tid = threadIdx.x;
-    const int offset = bidx * dim_size * state_size + didx * state_size + tid * ITEMS_PER_THREAD;
+    int offset;
+    if constexpr(REVERSE){
+        offset = bidx * dim_size * state_size + didx * state_size + (BLOCK_THREADS - tid) * ITEMS_PER_THREAD - 1;
+    }
+    else{
+        offset = bidx * dim_size * state_size + didx * state_size + tid * ITEMS_PER_THREAD;
+    }
 
     typedef typename PairScalar<scalar_t>::type pair_type;
     typedef cub::BlockScan<pair_type, BLOCK_THREADS> BlockScanT;
@@ -94,48 +102,64 @@ __global__ void pscan_cuda_forward_kernel(
     pair_type thread_data[ITEMS_PER_THREAD];
     scalar_t* thread_data_scalar = reinterpret_cast<scalar_t*>(thread_data);
 
-    if (ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD <= state_size)
-    {
-#pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
-        {
-            thread_data_scalar[i] = (A + offset)[i];
-        }
-#pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
-        {
-            thread_data_scalar[i+ITEMS_PER_THREAD] = (X + offset)[i];
-
+    if constexpr(REVERSE){
+        if ((tid+1) * ITEMS_PER_THREAD <= state_size){
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                thread_data_scalar[i] = A[offset - i];
+            }
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                thread_data_scalar[i+ITEMS_PER_THREAD] = X[offset - i];
+            }
         }
     }
+    else{
+        if ((tid+1) * ITEMS_PER_THREAD <= state_size){
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                thread_data_scalar[i] = A[offset + i];
+            }
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                thread_data_scalar[i+ITEMS_PER_THREAD] = X[offset + i];
+            }
+        }
+    }
+
+
     // Inplace transpose of thread_data for small fixed size
     transpose<scalar_t, ITEMS_PER_THREAD, 2>(thread_data_scalar);
     BlockScanT(temp_storage).InclusiveScan(thread_data, thread_data, MultAddFunctor<pair_type>());
     transpose<scalar_t, ITEMS_PER_THREAD, 2>(thread_data_scalar);
 
-    if (ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD <= state_size){
-        #pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
-        {
-            (A + offset)[i] = thread_data_scalar[i];
+    if constexpr(REVERSE){
+        if ((tid+1) * ITEMS_PER_THREAD <= state_size){
+            /*#pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                A[offset - i] = thread_data_scalar[i];
+            }*/
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                X[offset - i] = thread_data_scalar[i+ITEMS_PER_THREAD];
+            }
         }
-        #pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
-        {
-            (X + offset)[i] = thread_data_scalar[i+ITEMS_PER_THREAD];
-
+    }
+    else{
+        if ((tid+1) * ITEMS_PER_THREAD <= state_size){
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                A[offset + i] = thread_data_scalar[i];
+            }
+            #pragma unroll
+            for (int i = 0; i < ITEMS_PER_THREAD; ++i){
+                X[offset + i] = thread_data_scalar[i+ITEMS_PER_THREAD];
+            }
         }
     }
 }
 template <typename T, int BLOCK_THREADS, int ARCH>
-constexpr std::size_t arch_bytes_size = sizeof(
-    typename cub::BlockScan<
-        T,
-        BLOCK_THREADS,
-        cub::BLOCK_SCAN_RAKING /* ALGORITHM */,
-        1 /* BLOCK_DIM_Y */,
-        1 /* BLOCK_DIM_Z */,
-        ARCH>::TempStorage);
+constexpr std::size_t arch_bytes_size = sizeof(typename cub::BlockScan<T,BLOCK_THREADS,cub::BLOCK_SCAN_RAKING ,1,1,ARCH>::TempStorage);
 template <typename T, int BLOCK_THREADS, int... Archs>
 constexpr auto archs_max_bytes = (std::max)(
     {
@@ -186,7 +210,8 @@ __global__ void transposeNoBankConflicts(scalar_t *odata, const scalar_t *idata,
     }
 }
 
-torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X)
+template <bool REVERSE>
+torch::Tensor pscan_cuda_wrapper(torch::Tensor A, torch::Tensor X)
 {
     const auto batch_size = A.size(0);
     const auto state_size = A.size(2);
@@ -198,8 +223,7 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X)
     std::vector<cudaStream_t> streams(num_streams);
     torch::Tensor X_ = torch::empty({X.size(0), X.size(2), X.size(1)}, X.options());
 
-    for (size_t i = 0; i < num_streams; ++i)
-    {
+    for (size_t i = 0; i < num_streams; ++i){
         CHECK_CUDA_ERROR(cudaStreamCreate(&streams[i]));
     }
 
@@ -227,7 +251,7 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X)
         auto block_scan_temp_bytes = archs_max_bytes<pair_type, threads, 700, 800, 860>;
         auto smem_size = (std::max)(1 * sizeof(pair_type), block_scan_temp_bytes);
     
-        pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads><<<blocks, threads, smem_size, streams[i]>>>(
+        pscan_cuda_forward_kernel<scalar_t, elements_per_thread, threads, REVERSE><<<blocks, threads, smem_size, streams[i]>>>(
             A.data<scalar_t>() + offset*i,
             X_.data<scalar_t>() + offset*i,
             dim_size,
@@ -243,3 +267,6 @@ torch::Tensor pscan_cuda_forward(torch::Tensor A, torch::Tensor X)
 
     return X_;
 }
+
+template torch::Tensor pscan_cuda_wrapper<true>(torch::Tensor A, torch::Tensor X);
+template torch::Tensor pscan_cuda_wrapper<false>(torch::Tensor A, torch::Tensor X);

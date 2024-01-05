@@ -19,19 +19,13 @@ setup(
             name='pscan_cuda_v1', 
             sources=[
             'cuda/pscan_cuda_v1.cpp',
-            'cuda/pscan_cuda_v1_kernel.cu',
+            'cuda/pscan_cuda_v1_kernel.cu'
             ],
             extra_compile_args={
                 "cxx": ["-O3", "-std=c++17"],
                 "nvcc": [
                     "-O3",
                     "-std=c++17",
-                    "-U__CUDA_NO_HALF_OPERATORS__",
-                    "-U__CUDA_NO_HALF_CONVERSIONS__",
-                    "-U__CUDA_NO_BFLOAT16_OPERATORS__",
-                    "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
-                    "-U__CUDA_NO_BFLOAT162_OPERATORS__",
-                    "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
                     "--expt-relaxed-constexpr",
                     "--expt-extended-lambda",
                     "--use_fast_math",
