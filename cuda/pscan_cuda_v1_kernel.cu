@@ -45,6 +45,28 @@ struct MultAddFunctor
     }
 };
 
+template <typename scalar_t, int n, int m>
+__device__ __forceinline__ void transpose(scalar_t *A)
+{
+    if (n == 2 && m == 2)
+    {
+        scalar_t tmp = A[1];
+        A[1] = A[2];
+        A[2] = tmp;
+    }
+    else if (n == 4 && m == 2)
+    {
+        scalar_t tmp = A[1];
+        A[1] = A[4];
+        A[4] = A[2];
+        A[2] = tmp;
+        tmp = A[3];
+        A[3] = A[5];
+        A[5] = A[6];
+        A[6] = tmp;
+    }
+}
+
 template <
     typename scalar_t,
     int ITEMS_PER_THREAD,
@@ -70,38 +92,38 @@ __global__ void pscan_cuda_forward_kernel(
     auto &temp_storage = reinterpret_cast<TempStorageT &>(smem);
 
     pair_type thread_data[ITEMS_PER_THREAD];
+    scalar_t* thread_data_scalar = reinterpret_cast<scalar_t*>(thread_data);
 
-    if (1 + tid * ITEMS_PER_THREAD < state_size)
+    if (ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD <= state_size)
     {
 #pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD / 2; ++i)
+        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
         {
-            pair_type tmp = reinterpret_cast<pair_type *>(A + offset + i * 2)[0];
-            thread_data[i * 2].x = tmp.x;
-            thread_data[i * 2 + 1].x = tmp.y;
+            thread_data_scalar[i] = (A + offset)[i];
         }
 #pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD / 2; ++i)
+        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
         {
-            pair_type tmp = reinterpret_cast<pair_type *>(X + offset + i * 2)[0];
-            thread_data[i * 2].y = tmp.x;
-            thread_data[i * 2 + 1].y = tmp.y;
+            thread_data_scalar[i+ITEMS_PER_THREAD] = (X + offset)[i];
+
         }
     }
+    // Inplace transpose of thread_data for small fixed size
+    transpose<scalar_t, ITEMS_PER_THREAD, 2>(thread_data_scalar);
     BlockScanT(temp_storage).InclusiveScan(thread_data, thread_data, MultAddFunctor<pair_type>());
-    if (1 + tid * ITEMS_PER_THREAD < state_size)
-    {
-#pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD / 2; ++i)
+    transpose<scalar_t, ITEMS_PER_THREAD, 2>(thread_data_scalar);
+
+    if (ITEMS_PER_THREAD + tid * ITEMS_PER_THREAD <= state_size){
+        #pragma unroll
+        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
         {
-            pair_type tmp = reinterpret_cast<pair_type *>(A + offset + i * 2)[0];
-            reinterpret_cast<pair_type *>(A + offset + i * 2)[0] = {thread_data[i * 2].x, thread_data[i * 2 + 1].x};
+            (A + offset)[i] = thread_data_scalar[i];
         }
-#pragma unroll
-        for (int i = 0; i < ITEMS_PER_THREAD / 2; ++i)
+        #pragma unroll
+        for (int i = 0; i < ITEMS_PER_THREAD; ++i)
         {
-            pair_type tmp = reinterpret_cast<pair_type *>(X + offset + i * 2)[0];
-            reinterpret_cast<pair_type *>(X + offset + i * 2)[0] = {thread_data[i * 2].y, thread_data[i * 2 + 1].y};
+            (X + offset)[i] = thread_data_scalar[i+ITEMS_PER_THREAD];
+
         }
     }
 }
